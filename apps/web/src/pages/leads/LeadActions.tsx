@@ -1,11 +1,12 @@
-import { Alert, Anchor, Badge, Button, Group, Progress, Stack, Text, Tooltip } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Group, NumberInput, Progress, Select, Stack, Text, Tooltip } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import { IconFlask, IconSend } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api, unwrap } from "../../lib/api";
-import { formatDateTime } from "../../lib/format";
+import { formatDateTime, formatRupiah } from "../../lib/format";
 
 type Detail = Awaited<ReturnType<typeof fetchDetail>>;
 const fetchDetail = (id: string) => unwrap(api.leads[":id"].$get({ param: { id } }));
@@ -16,9 +17,26 @@ export function LeadActions({ data }: { data: Detail }) {
   const { lead, events, metrics, capi } = data;
   const qc = useQueryClient();
 
+  // event pilihan: default event trigger bila belum terkirim, kalau tidak event aktif pertama yang belum terkirim
+  const options = capi.eventOptions;
+  const unsent = options.filter((o) => !o.sent);
+  const defaultEvent = (unsent.find((o) => o.fromTrigger) ?? unsent[0])?.name ?? null;
+  const [eventName, setEventName] = useState<string | null>(defaultEvent);
+  const selected = useMemo(() => options.find((o) => o.name === eventName) ?? null, [options, eventName]);
+  const [value, setValue] = useState<number | string>("");
+  useEffect(() => {
+    if (!eventName || !options.some((o) => o.name === eventName && !o.sent)) setEventName(defaultEvent);
+  }, [lead.id, defaultEvent, eventName, options]);
+  useEffect(() => setValue(selected?.defaultValue ?? ""), [selected?.name, selected?.defaultValue, lead.id]);
+
+  const numValue = value === "" ? null : Number(value);
+  const valueMissing = !!selected?.valueRequired && !numValue;
+  const allSent = unsent.length === 0;
+
   const send = useMutation({
-    mutationFn: () => unwrap(api.leads[":id"].send.$post({ param: { id: lead.id } })),
-    onSuccess: () => notifications.show({ color: "teal", message: `Terkirim ke Meta sebagai ${capi.eventName}` }),
+    mutationFn: (v: { eventName: string; value: number | null }) =>
+      unwrap(api.leads[":id"].send.$post({ param: { id: lead.id }, json: v })),
+    onSuccess: (_, v) => notifications.show({ color: "teal", message: `Terkirim ke Meta sebagai ${v.eventName}` }),
     onError: (e) => notifications.show({ color: "red", title: "Gagal mengirim", message: e.message }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["lead", lead.id] });
@@ -27,18 +45,22 @@ export function LeadActions({ data }: { data: Detail }) {
     },
   });
 
-  const confirmSend = () =>
+  const confirmSend = () => {
+    if (!selected) return;
+    const v = { eventName: selected.name, value: numValue };
     modals.openConfirmModal({
       title: "Kirim lead ke Meta?",
       children: (
         <Text size="sm">
-          Lead dikirim sebagai event <b>{capi.eventName}</b> ke pixel <b>{capi.pixelName}</b>. Pengiriman tidak bisa
-          dibatalkan.
+          Lead dikirim sebagai event <b>{selected.label}</b>
+          {numValue != null ? ` senilai ${formatRupiah(numValue)}` : ""} ke pixel <b>{capi.pixelName}</b>. Pengiriman
+          tidak bisa dibatalkan.
         </Text>
       ),
       labels: { confirm: "Kirim", cancel: "Batal" },
-      onConfirm: () => send.mutate(),
+      onConfirm: () => send.mutate(v),
     });
+  };
 
   const testMode = capi.blockedCode === "test_mode";
   // link perbaikan sesuai alasan tombol kirim nonaktif
@@ -108,7 +130,7 @@ export function LeadActions({ data }: { data: Detail }) {
         </Alert>
       )}
 
-      {testMode && !lead.capiSentAt && (
+      {testMode && !allSent && (
         <Alert color="yellow" variant="light" p="xs" icon={<IconFlask size={18} />} title="Sedang di mode test">
           <Text size="sm">
             Pixel <b>{capi.pixelName}</b> memakai test event code <b>{capi.testEventCode}</b>, jadi lead tidak bisa dikirim ke
@@ -121,30 +143,64 @@ export function LeadActions({ data }: { data: Detail }) {
         </Alert>
       )}
 
-      {lead.capiSentAt ? (
+      {lead.capiSentAt && (
         <Text size="sm">
           <Badge color="teal" variant="light" mr={6}>
             CAPI Sent
           </Badge>
           {formatDateTime(new Date(lead.capiSentAt))}
         </Text>
-      ) : (
-        <Tooltip label={capi.blockedReason} disabled={capi.canSend || testMode} multiline w={240}>
-          <div>
-            <Button
-              fullWidth
-              leftSection={<IconSend size={16} />}
-              disabled={!capi.canSend}
-              loading={send.isPending}
-              onClick={confirmSend}
-              variant={lead.isPotential ? "filled" : "light"}
-            >
-              Kirim ke Meta ({capi.eventName})
-            </Button>
-          </div>
-        </Tooltip>
       )}
-      {!capi.canSend && !testMode && capi.blockedReason && !lead.capiSentAt && (
+
+      {allSent ? (
+        <Text size="xs" c="dimmed">
+          Semua event aktif sudah terkirim untuk lead ini.{" "}
+          <Anchor component={Link} to="/app/events" size="xs">
+            Atur event
+          </Anchor>
+        </Text>
+      ) : (
+        <Stack gap="xs">
+          <Select
+            label="Event"
+            size="sm"
+            allowDeselect={false}
+            value={eventName}
+            onChange={setEventName}
+            data={options.map((o) => ({
+              value: o.name,
+              label: `${o.label}${o.fromTrigger ? " (trigger)" : ""}${o.sent ? " · terkirim" : ""}`,
+              disabled: o.sent,
+            }))}
+          />
+          <NumberInput
+            label={selected?.valueRequired ? "Nilai transaksi" : "Nilai (opsional)"}
+            size="sm"
+            prefix="Rp "
+            thousandSeparator="."
+            decimalSeparator=","
+            min={0}
+            value={value}
+            onChange={setValue}
+            error={valueMissing ? `Wajib diisi untuk ${selected?.label}` : undefined}
+          />
+          <Tooltip label={capi.blockedReason} disabled={capi.canSend || testMode} multiline w={240}>
+            <div>
+              <Button
+                fullWidth
+                leftSection={<IconSend size={16} />}
+                disabled={!capi.canSend || !selected || valueMissing}
+                loading={send.isPending}
+                onClick={confirmSend}
+                variant={lead.isPotential || lead.capiSentAt ? "filled" : "light"}
+              >
+                Kirim ke Meta{selected ? ` (${selected.label})` : ""}
+              </Button>
+            </div>
+          </Tooltip>
+        </Stack>
+      )}
+      {!capi.canSend && !testMode && capi.blockedReason && !allSent && (
         <Text size="xs" c="red">
           {capi.blockedReason}{" "}
           <Anchor component={Link} to={fixLink.to} size="xs">

@@ -11,12 +11,25 @@ import {
   sendEvents,
   testModeMessage,
 } from "./meta";
+import { findEnabledEvent, VALUE_REQUIRED } from "./event-settings";
 import { publish } from "./realtime";
 import { resolvePixel, resolveTrigger } from "./resolve";
 
 export type SendResult =
   | { ok: true; eventId: string; fbtraceId?: string }
-  | { ok: false; code: "not_found" | "no_pixel" | "test_mode" | "missing_business_id" | "already_sent" | "meta_error"; message: string };
+  | {
+      ok: false;
+      code:
+        | "not_found"
+        | "no_pixel"
+        | "test_mode"
+        | "missing_business_id"
+        | "invalid_event"
+        | "value_required"
+        | "already_sent"
+        | "meta_error";
+      message: string;
+    };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,7 +40,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function sendLeadToMeta(
   leadId: string,
-  opts: { trigger: "auto" | "manual"; sentBy?: string; userId?: string },
+  opts: {
+    trigger: "auto" | "manual";
+    sentBy?: string;
+    userId?: string;
+    /** event pilihan user (manual); kosong = event dari trigger */
+    eventName?: string;
+    /** nilai transaksi; kosong = nilai default event / trigger */
+    value?: number | null;
+  },
 ): Promise<SendResult> {
   const [row] = await db
     .select({ lead: schema.leads, account: schema.waAccounts })
@@ -48,7 +69,18 @@ export async function sendLeadToMeta(
   if (needsBusinessId(lead, pixel)) return { ok: false, code: "missing_business_id", message: MISSING_BUSINESS_ID };
 
   const trigger = await resolveTrigger(userId, account.id);
-  const eventName = trigger?.eventName ?? "Lead";
+  const eventName = opts.eventName ?? trigger?.eventName ?? "Lead";
+  const setting = await findEnabledEvent(userId, eventName);
+  const fromTrigger = !!trigger && trigger.eventName === eventName;
+  // event di luar trigger harus terdaftar & aktif di menu Events
+  if (!setting && !fromTrigger && opts.eventName) {
+    return { ok: false, code: "invalid_event", message: `Event ${eventName} tidak aktif. Aktifkan di menu Events.` };
+  }
+  const value = opts.value ?? (fromTrigger ? trigger?.value : null) ?? setting?.defaultValue ?? null;
+  const currency = (fromTrigger ? trigger?.currency : null) ?? setting?.currency ?? "IDR";
+  if (VALUE_REQUIRED.has(eventName) && !value) {
+    return { ok: false, code: "value_required", message: `Event ${eventName} wajib disertai nilai transaksi (Meta mewajibkan value).` };
+  }
 
   // reservasi atomik
   let capiEventId: string;
@@ -74,8 +106,8 @@ export async function sendLeadToMeta(
 
   const event = buildLeadEvent(lead, {
     eventName,
-    value: trigger?.value,
-    currency: trigger?.currency,
+    value,
+    currency,
     wabaId: pixel.wabaId,
     pageId: pixel.pageId,
   });

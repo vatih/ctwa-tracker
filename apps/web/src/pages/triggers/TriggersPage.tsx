@@ -1,6 +1,7 @@
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -24,15 +25,16 @@ import { notifications } from "@mantine/notifications";
 import { IconDots, IconPencil, IconPlus, IconSettingsAutomation, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { ScopeField } from "../../components/ScopeField";
 import { api, unwrap } from "../../lib/api";
 import { formatRupiah } from "../../lib/format";
+import { fetchEventSettings } from "../events/EventsPage";
 
 type Trigger = Awaited<ReturnType<typeof fetchTriggers>>[number];
 const fetchTriggers = () => unwrap(api.triggers.$get());
 
 const scopeLabel = { lead: "dari customer", admin: "dari admin", both: "dari siapa saja" } as const;
-const EVENT_OPTIONS = ["Lead", "Purchase", "CompleteRegistration", "Contact", "InitiateCheckout", "Schedule", "SubmitApplication"];
 
 export function TriggersPage() {
   const qc = useQueryClient();
@@ -182,7 +184,7 @@ const emptyValues = {
   countMode: "customer_only" as "customer_only" | "customer_admin",
   keywords: [] as Keyword[],
   mode: "manual" as "auto" | "manual",
-  eventName: "Lead",
+  eventName: "InitiateCheckout",
   value: "" as number | string,
   currency: "IDR",
   enabled: true,
@@ -201,13 +203,23 @@ function TriggerForm({ trigger, onClose, onSaved }: { trigger: Trigger | "new" |
       keywords: {
         keyword: isNotEmpty("Kata kunci tidak boleh kosong"),
       },
-      eventName: (v) => (/^[A-Za-z0-9_ ]+$/.test(v) ? null : "Nama event hanya huruf, angka, spasi, _"),
+      eventName: (v) => (/^[A-Za-z0-9_ ]+$/.test(v) ? null : "Pilih event"),
+      value: (v, values) => (values.eventName === "Purchase" && !Number(v) ? "Meta mewajibkan nilai untuk Purchase" : null),
     },
   });
   const applyAll = form.useWatchValue("applyAll");
   const waAccountIds = form.useWatchValue("waAccountIds");
   const useCount = form.useWatchValue("useCount");
   const mode = form.useWatchValue("mode");
+  const currentEvent = form.useWatchValue("eventName");
+  const eventSettings = useQuery({ queryKey: ["event-settings"], queryFn: fetchEventSettings });
+  // event aktif dari menu Events; event lama trigger tetap ditampilkan agar tidak hilang
+  const eventOptions = (eventSettings.data ?? [])
+    .filter((e) => e.enabled)
+    .map((e) => ({ value: e.name, label: e.label || e.name }));
+  if (existing && !eventOptions.some((o) => o.value === existing.eventName)) {
+    eventOptions.unshift({ value: existing.eventName, label: `${existing.eventName} (lama)` });
+  }
 
   const key = existing?.id ?? (trigger === "new" ? "new" : null);
   useEffect(() => {
@@ -368,14 +380,19 @@ function TriggerForm({ trigger, onClose, onSaved }: { trigger: Trigger | "new" |
           <Group grow align="flex-start">
             <Select
               label="Nama event"
-              data={EVENT_OPTIONS}
+              description={
+                <>
+                  Daftar dari menu <Anchor component={Link} to="/app/events" size="xs">Events</Anchor>
+                </>
+              }
+              data={eventOptions}
               searchable
               allowDeselect={false}
               key={form.key("eventName")}
               {...form.getInputProps("eventName")}
             />
             <NumberInput
-              label="Nilai (opsional)"
+              label={currentEvent === "Purchase" ? "Nilai (wajib untuk Purchase)" : "Nilai (opsional)"}
               prefix="Rp "
               thousandSeparator="."
               decimalSeparator=","

@@ -228,6 +228,36 @@ export const triggerKeywords = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Event yang bisa dikirim ke Meta                                     */
+/* ------------------------------------------------------------------ */
+
+export const eventKind = pgEnum("event_kind", ["standard", "custom"]);
+
+/**
+ * Daftar event per user. Event standar (InitiateCheckout, Purchase) dibuat otomatis
+ * dan hanya bisa diaktif/nonaktifkan; event custom bebas ditambah user.
+ * Event aktif muncul sebagai pilihan di detail lead dan di form trigger.
+ */
+export const eventSettings = pgTable(
+  "event_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: eventKind("kind").notNull(),
+    name: text("name").notNull(), // event_name yang dikirim ke Meta
+    label: text("label"), // nama tampilan (opsional)
+    defaultValue: bigint("default_value", { mode: "number" }),
+    currency: text("currency").notNull().default("IDR"),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("event_settings_user_name_uq").on(t.userId, t.name)],
+);
+
+/* ------------------------------------------------------------------ */
 /* Leads & messages (ditulis oleh engine Go)                           */
 /* ------------------------------------------------------------------ */
 

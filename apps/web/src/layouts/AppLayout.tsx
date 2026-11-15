@@ -2,6 +2,7 @@ import { AppShell, Box, Burger, Center, Group, Loader, Menu, NavLink, Text, Unst
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconBook,
+  IconBolt,
   IconBrandWhatsapp,
   IconChevronDown,
   IconInbox,
@@ -22,6 +23,7 @@ const nav = [
   { to: "/app/pixels", label: "Pixel", icon: IconTarget },
   { to: "/app/wa-accounts", label: "WA Accounts", icon: IconBrandWhatsapp },
   { to: "/app/triggers", label: "Triggers", icon: IconSettingsAutomation },
+  { to: "/app/events", label: "Events", icon: IconBolt },
   { to: "/app/capi-logs", label: "Log CAPI", icon: IconListDetails },
   { to: "/app/panduan", label: "Panduan", icon: IconBook },
 ];

@@ -7,6 +7,7 @@ import { env } from "./env";
 import { type AppEnv, sessionMiddleware } from "./lib/context";
 import { meRoutes } from "./routes/me";
 import { capiLogRoutes } from "./routes/capi-logs";
+import { eventSettingRoutes } from "./routes/event-settings";
 import { eventRoutes } from "./routes/events";
 import { leadRoutes } from "./routes/leads";
 import { panelRoutes } from "./routes/panel";
@@ -23,6 +24,7 @@ const api = new Hono<AppEnv>()
   .route("/wa-accounts", waAccountRoutes)
   .route("/leads", leadRoutes)
   .route("/events", eventRoutes)
+  .route("/event-settings", eventSettingRoutes)
   .route("/pixels", pixelRoutes)
   .route("/capi-logs", capiLogRoutes)
   .route("/triggers", triggerRoutes)

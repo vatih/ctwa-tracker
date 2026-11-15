@@ -104,6 +104,49 @@ d("sendLeadToMeta", () => {
     expect(again).toMatchObject({ ok: false, code: "already_sent" });
   });
 
+  test("event pilihan: Purchase setelah Lead, wajib value, custom harus aktif", async () => {
+    const leadId = await newLead();
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId })).toMatchObject({ ok: true });
+
+    // Purchase tanpa value ditolak sebelum ke Meta
+    const callsBefore = metaCalls.length;
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "Purchase" })).toMatchObject({
+      ok: false,
+      code: "value_required",
+    });
+    expect(metaCalls.length).toBe(callsBefore);
+
+    const r = await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "Purchase", value: 250000 });
+    expect(r.ok).toBe(true);
+    const ev = (metaCalls.at(-1)!.body as { data: Record<string, any>[] }).data[0];
+    expect(ev.event_name).toBe("Purchase");
+    expect(ev.event_id).toBe(`${leadId}:Purchase`);
+    expect(ev.custom_data).toMatchObject({ value: 250000, currency: "IDR" });
+
+    // event custom belum terdaftar -> ditolak; setelah dibuat & aktif -> terkirim dengan nilai default
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "SudahTransfer" })).toMatchObject({
+      ok: false,
+      code: "invalid_event",
+    });
+    await db
+      .insert(schema.eventSettings)
+      .values({ userId, kind: "custom", name: "SudahTransfer", defaultValue: 100000, currency: "IDR" });
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "SudahTransfer" })).toMatchObject({ ok: true });
+    const custom = (metaCalls.at(-1)!.body as { data: Record<string, any>[] }).data[0];
+    expect(custom.event_name).toBe("SudahTransfer");
+    expect(custom.custom_data.value).toBe(100000);
+
+    // event standar yang dinonaktifkan tidak bisa dipilih
+    await db
+      .update(schema.eventSettings)
+      .set({ enabled: false })
+      .where(and(eq(schema.eventSettings.userId, userId), eq(schema.eventSettings.name, "InitiateCheckout")));
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "InitiateCheckout" })).toMatchObject({
+      ok: false,
+      code: "invalid_event",
+    });
+  });
+
   test("lead organik pakai action_source chat", async () => {
     const leadId = await newLead({ clid: false });
     await sendLeadToMeta(leadId, { trigger: "auto" });

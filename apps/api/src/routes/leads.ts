@@ -7,6 +7,7 @@ import { type AppEnv, requireUser } from "../lib/context";
 import { v } from "../lib/validator";
 import { sendLeadToMeta } from "../services/capi";
 import { evaluate } from "../services/evaluator";
+import { listEventSettings, VALUE_REQUIRED } from "../services/event-settings";
 import { MISSING_BUSINESS_ID, needsBusinessId, testModeMessage } from "../services/meta";
 import { resolvePixel, resolveTrigger } from "../services/resolve";
 
@@ -111,7 +112,11 @@ export const leadRoutes = new Hono<AppEnv>()
       .limit(20);
 
     // status Lead Metrix & kesiapan kirim (untuk panel kanan)
-    const [pixel, trigger] = await Promise.all([resolvePixel(user.id, account.id), resolveTrigger(user.id, account.id)]);
+    const [pixel, trigger, eventSettings] = await Promise.all([
+      resolvePixel(user.id, account.id),
+      resolveTrigger(user.id, account.id),
+      listEventSettings(user.id),
+    ]);
     let metrics = null;
     if (trigger) {
       const msgs = trigger.keywords.length
@@ -143,6 +148,32 @@ export const leadRoutes = new Hono<AppEnv>()
           ? { canSend: false, blockedCode: "missing_business_id", blockedReason: MISSING_BUSINESS_ID }
           : { canSend: true, blockedCode: null, blockedReason: null };
 
+    // pilihan event di panel kanan: event trigger + event aktif di menu Events
+    const triggerEvent = trigger?.eventName ?? null;
+    const sentNames = new Set(events.filter((e) => e.status !== "failed").map((e) => e.eventName));
+    const eventOptions = eventSettings
+      .filter((e) => e.enabled)
+      .map((e) => ({
+        name: e.name,
+        label: e.label || e.name,
+        kind: e.kind,
+        defaultValue: (e.name === triggerEvent ? trigger?.value : null) ?? e.defaultValue,
+        valueRequired: VALUE_REQUIRED.has(e.name),
+        fromTrigger: e.name === triggerEvent,
+        sent: sentNames.has(e.name),
+      }));
+    if (triggerEvent && !eventOptions.some((e) => e.name === triggerEvent)) {
+      eventOptions.unshift({
+        name: triggerEvent,
+        label: triggerEvent,
+        kind: "standard",
+        defaultValue: trigger?.value ?? null,
+        valueRequired: VALUE_REQUIRED.has(triggerEvent),
+        fromTrigger: true,
+        sent: sentNames.has(triggerEvent),
+      });
+    }
+
     return c.json({
       lead,
       account,
@@ -150,7 +181,8 @@ export const leadRoutes = new Hono<AppEnv>()
       metrics,
       capi: {
         pixelName: pixel?.name ?? null,
-        eventName: trigger?.eventName ?? "Lead",
+        eventName: triggerEvent ?? "Lead",
+        eventOptions,
         testEventCode: pixel?.testEventCode ?? null,
         ...block,
       },
@@ -158,11 +190,28 @@ export const leadRoutes = new Hono<AppEnv>()
   })
 
   // Kirim manual ke Meta (user review lead Potential)
-  .post("/:id/send", v("param", z.object({ id: z.uuid() })), async (c) => {
+  .post(
+    "/:id/send",
+    v("param", z.object({ id: z.uuid() })),
+    v(
+      "json",
+      z.object({
+        eventName: z.string().trim().min(1).max(50).optional(),
+        value: z.number().int().min(0).nullable().optional(),
+      }),
+    ),
+    async (c) => {
     const user = c.get("user")!;
     const { id } = c.req.valid("param");
+    const b = c.req.valid("json");
     await ownedLead(user.id, id);
-    const r = await sendLeadToMeta(id, { trigger: "manual", sentBy: user.id, userId: user.id });
+    const r = await sendLeadToMeta(id, {
+      trigger: "manual",
+      sentBy: user.id,
+      userId: user.id,
+      eventName: b.eventName,
+      value: b.value,
+    });
     if (!r.ok) {
       const status =
         r.code === "not_found"
@@ -175,7 +224,8 @@ export const leadRoutes = new Hono<AppEnv>()
       throw new HTTPException(status, { message: r.message });
     }
     return c.json({ ok: true as const, eventId: r.eventId });
-  })
+    },
+  )
 
   // 50 pesan per halaman, urut lama -> baru; before = id pesan tertua yang sudah dimuat
   .get(

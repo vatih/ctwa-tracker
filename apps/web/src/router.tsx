@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CapiLogsPage } from "./pages/capi-logs/CapiLogsPage";
 import { DocsPage } from "./pages/docs/DocsPage";
+import { EventsPage } from "./pages/events/EventsPage";
 import { LeadsPage } from "./pages/leads/LeadsPage";
 import { UsersPage } from "./pages/panel/UsersPage";
 import { PixelsPage } from "./pages/pixels/PixelsPage";
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: "leads", element: <LeadsPage /> },
       { path: "leads/:leadId", element: <LeadsPage /> },
       { path: "triggers", element: <TriggersPage /> },
+      { path: "events", element: <EventsPage /> },
       // URL lama, tetap diarahkan supaya bookmark tidak rusak
       { path: "leads/triggers", element: <Navigate to="/app/triggers" replace /> },
       { path: "pixels", element: <PixelsPage /> },
