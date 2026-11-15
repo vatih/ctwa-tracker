@@ -220,7 +220,7 @@ function EventForm({ event, onClose, onSaved }: { event: EventSetting | "new" | 
             {...form.getInputProps("label")}
           />
           <NumberInput
-            label="Nilai default (opsional)"
+            label="Nominal transaksi (Rp)"
             description="Terisi otomatis saat kirim dari detail lead, tetap bisa diubah per lead."
             prefix="Rp "
             thousandSeparator="."
