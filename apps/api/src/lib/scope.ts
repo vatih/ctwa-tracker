@@ -1,7 +1,7 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
-import { HTTPException } from "hono/http-exception";
 import { db, schema } from "../db";
+import { FieldError } from "./errors";
 
 /**
  * Validasi cakupan "semua nomor / nomor tertentu" (dipakai Pixel & Trigger):
@@ -24,18 +24,18 @@ export async function validateScope(opts: {
       .select({ id: table.id })
       .from(table)
       .where(and(eq(table.userId, userId), eq(table.applyAll, true), selfId ? ne(table.id, selfId) : undefined));
-    if (others.length) throw new HTTPException(409, { message: `Sudah ada ${label} untuk semua nomor. Ubah yang lama atau pilih nomor tertentu.` });
+    if (others.length) throw new FieldError(409, "waAccountIds", `Sudah ada ${label} untuk semua nomor. Ubah yang lama atau pilih nomor tertentu.`);
     return;
   }
-  if (!waAccountIds.length) throw new HTTPException(400, { message: "Pilih minimal satu nomor" });
+  if (!waAccountIds.length) throw new FieldError(400, "waAccountIds", "Pilih minimal satu nomor");
   const owned = await db
     .select({ id: schema.waAccounts.id })
     .from(schema.waAccounts)
     .where(and(eq(schema.waAccounts.userId, userId), inArray(schema.waAccounts.id, waAccountIds)));
-  if (owned.length !== new Set(waAccountIds).size) throw new HTTPException(400, { message: "Nomor tidak valid" });
+  if (owned.length !== new Set(waAccountIds).size) throw new FieldError(400, "waAccountIds", "Nomor tidak valid");
   const taken = await db
     .select({ id: link.waAccountId })
     .from(link)
     .where(and(inArray(link.waAccountId, waAccountIds), selfId ? ne(linkOwner, selfId) : undefined));
-  if (taken.length) throw new HTTPException(409, { message: `Sebagian nomor sudah memakai ${label} lain` });
+  if (taken.length) throw new FieldError(409, "waAccountIds", `Sebagian nomor sudah memakai ${label} lain`);
 }

@@ -90,23 +90,28 @@ d("sendLeadToMeta", () => {
     expect(ev.user_data.ctwa_clid).toBe("clid-test");
     expect(ev.user_data.page_id).toBe("555000111");
     expect(ev.user_data.ph[0]).toHaveLength(64);
-    expect(ev.event_id).toBe(`${leadId}:Lead`);
+    expect(ev.event_id).toBe(`${leadId}:InitiateCheckout`);
 
     // log audit: 1 baris sukses, tanpa access token
     const [log] = await logsFor(leadId);
     expect(log).toMatchObject({ userId, source: "send_manual", ok: true, httpStatus: 200, attempt: 1, fbtraceId: "trace-ok" });
     expect(log.datasetId).toBe("1234567890");
     expect(JSON.stringify(log.request)).not.toContain("EAAtest");
-    expect((log.request as { data: { event_id: string }[] }).data[0].event_id).toBe(`${leadId}:Lead`);
+    expect((log.request as { data: { event_id: string }[] }).data[0].event_id).toBe(`${leadId}:InitiateCheckout`);
 
     // kirim ulang ditolak
     const again = await sendLeadToMeta(leadId, { trigger: "manual", userId });
     expect(again).toMatchObject({ ok: false, code: "already_sent" });
   });
 
-  test("event pilihan: Purchase setelah Lead, wajib value, custom harus aktif", async () => {
+  test("event pilihan: Purchase setelah Lead, wajib value, custom harus aktif & hanya lead organik", async () => {
     const leadId = await newLead();
     expect(await sendLeadToMeta(leadId, { trigger: "manual", userId })).toMatchObject({ ok: true });
+    // tanpa trigger & tanpa pilihan: default InitiateCheckout
+    const first = (metaCalls.at(-1)!.body as { data: Record<string, any>[] }).data[0];
+    expect(first.event_name).toBe("InitiateCheckout");
+    // event di luar 3 event standar (mis. Lead) ditolak untuk lead iklan
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "Lead" })).toMatchObject({ ok: false });
 
     // Purchase tanpa value ditolak sebelum ke Meta
     const callsBefore = metaCalls.length;
@@ -131,7 +136,16 @@ d("sendLeadToMeta", () => {
     await db
       .insert(schema.eventSettings)
       .values({ userId, kind: "custom", name: "SudahTransfer", defaultValue: 100000, currency: "IDR" });
-    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "SudahTransfer" })).toMatchObject({ ok: true });
+    // lead iklan (business_messaging) tidak menerima event custom
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "SudahTransfer" })).toMatchObject({
+      ok: false,
+      code: "unsupported_event",
+    });
+    // QualifiedLead (event standar baru) diterima untuk lead iklan
+    expect(await sendLeadToMeta(leadId, { trigger: "manual", userId, eventName: "QualifiedLead" })).toMatchObject({ ok: true });
+    // lead organik boleh event custom
+    const organicId = await newLead({ clid: false });
+    expect(await sendLeadToMeta(organicId, { trigger: "manual", userId, eventName: "SudahTransfer" })).toMatchObject({ ok: true });
     const custom = (metaCalls.at(-1)!.body as { data: Record<string, any>[] }).data[0];
     expect(custom.event_name).toBe("SudahTransfer");
     expect(custom.custom_data.value).toBe(100000);

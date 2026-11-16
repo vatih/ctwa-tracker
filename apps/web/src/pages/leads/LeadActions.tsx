@@ -19,13 +19,14 @@ export function LeadActions({ data }: { data: Detail }) {
 
   // event pilihan: default event trigger bila belum terkirim, kalau tidak event aktif pertama yang belum terkirim
   const options = capi.eventOptions;
-  const unsent = options.filter((o) => !o.sent);
+  // lead iklan tidak menerima event custom (business_messaging)
+  const unsent = options.filter((o) => !o.sent && !o.unsupported);
   const defaultEvent = (unsent.find((o) => o.fromTrigger) ?? unsent[0])?.name ?? null;
   const [eventName, setEventName] = useState<string | null>(defaultEvent);
   const selected = useMemo(() => options.find((o) => o.name === eventName) ?? null, [options, eventName]);
   const [value, setValue] = useState<number | string>("");
   useEffect(() => {
-    if (!eventName || !options.some((o) => o.name === eventName && !o.sent)) setEventName(defaultEvent);
+    if (!eventName || !options.some((o) => o.name === eventName && !o.sent && !o.unsupported)) setEventName(defaultEvent);
   }, [lead.id, defaultEvent, eventName, options]);
   useEffect(() => setValue(selected?.defaultValue ?? ""), [selected?.name, selected?.defaultValue, lead.id]);
 
@@ -154,7 +155,7 @@ export function LeadActions({ data }: { data: Detail }) {
 
       {allSent ? (
         <Text size="xs" c="dimmed">
-          Semua event aktif sudah terkirim untuk lead ini.{" "}
+          Semua event yang bisa dikirim sudah terkirim untuk lead ini.{" "}
           <Anchor component={Link} to="/app/events" size="xs">
             Atur event
           </Anchor>
@@ -169,8 +170,8 @@ export function LeadActions({ data }: { data: Detail }) {
             onChange={setEventName}
             data={options.map((o) => ({
               value: o.name,
-              label: `${o.label}${o.fromTrigger ? " (trigger)" : ""}${o.sent ? " · terkirim" : ""}`,
-              disabled: o.sent,
+              label: `${o.label}${o.fromTrigger ? " (trigger)" : ""}${o.sent ? " · terkirim" : o.unsupported ? " · khusus lead organik" : ""}`,
+              disabled: o.sent || o.unsupported,
             }))}
           />
           <NumberInput

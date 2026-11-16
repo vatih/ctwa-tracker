@@ -26,11 +26,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { ScopeField } from "../../components/ScopeField";
-import { api, unwrap } from "../../lib/api";
+import { api, ApiError, unwrap } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 
 type Pixel = Awaited<ReturnType<typeof fetchPixels>>[number];
 const fetchPixels = () => unwrap(api.pixels.$get());
+
+/**
+ * Form Pixel bukan form login: cegah browser & password manager mengisi otomatis
+ * (email ke WABA ID, password tersimpan ke access token).
+ */
+const noAutofill = {
+  autoComplete: "off",
+  "data-1p-ignore": true,
+  "data-lpignore": "true",
+  "data-bwignore": true,
+  "data-form-type": "other",
+} as const;
 
 export function PixelsPage() {
   const qc = useQueryClient();
@@ -41,7 +53,8 @@ export function PixelsPage() {
 
   const accountLabel = (id: string) => {
     const a = accounts.data?.find((x) => x.id === id);
-    return a?.phone ? `+${a.phone}` : (a?.label ?? "Nomor");
+    if (!a) return "Nomor";
+    return a.phone ? `+${a.phone}${a.label ? ` · ${a.label}` : ""}` : (a.label ?? "Nomor belum terhubung");
   };
 
   const remove = (p: Pixel) =>
@@ -126,17 +139,20 @@ export function PixelsPage() {
                   </Text>
                 </Group>
               )}
-              <Group gap={4}>
-                {p.applyAll ? (
-                  <Badge variant="light">Semua nomor</Badge>
-                ) : (
-                  p.waAccountIds.map((id) => (
-                    <Badge key={id} variant="light" color="gray">
+              {p.waAccountIds.length ? (
+                <Group gap={4}>
+                  <Text size="sm">Nomor:</Text>
+                  {p.waAccountIds.map((id) => (
+                    <Badge key={id} variant="light" color="gray" tt="none">
                       {accountLabel(id)}
                     </Badge>
-                  ))
-                )}
-              </Group>
+                  ))}
+                </Group>
+              ) : (
+                <Text size="sm" c="orange">
+                  Belum terhubung ke nomor mana pun, jadi lead belum dikirim ke dataset ini. Pilih nomor lewat menu Ubah.
+                </Text>
+              )}
               {p.validatedAt && (
                 <Text size="xs" c="dimmed">
                   Tervalidasi {formatDateTime(new Date(p.validatedAt))}
@@ -180,7 +196,6 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
       wabaId: "",
       pageId: "",
       testEventCode: "",
-      applyAll: true,
       waAccountIds: [] as string[],
     },
     validate: {
@@ -188,10 +203,9 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
       pixelId: matches(/^\d{5,20}$/, "Pixel ID berupa angka"),
       wabaId: matches(/^\d*$/, "WABA ID berupa angka"),
       pageId: matches(/^\d*$/, "Page ID berupa angka"),
-      waAccountIds: (v, values) => (!values.applyAll && v.length === 0 ? "Pilih minimal satu nomor" : null),
+      waAccountIds: (v) => (v.length === 0 ? "Pilih minimal satu nomor" : null),
     },
   });
-  const applyAll = form.useWatchValue("applyAll");
   const waAccountIds = form.useWatchValue("waAccountIds");
 
   // isi form saat modal dibuka
@@ -206,7 +220,6 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
       wabaId: existing?.wabaId ?? "",
       pageId: existing?.pageId ?? "",
       testEventCode: existing?.testEventCode ?? "",
-      applyAll: existing?.applyAll ?? true,
       waAccountIds: existing?.waAccountIds ?? [],
     });
     form.clearErrors();
@@ -230,17 +243,24 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
       notifications.show({
         color: "teal",
         title: "Pixel tervalidasi & tersimpan",
-        message: [r.name ? `Dataset: ${r.name}` : null, r.testEvent].filter(Boolean).join(". ") || "OK",
+        message: [r.name ? `Dataset: ${r.name}` : null, r.note].filter(Boolean).join(". ") || "OK",
       });
       onSaved();
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => {
+      // error milik satu kolom tampil di helper kolom itu, sisanya di alert bawah
+      if (e instanceof ApiError && e.field && e.field in form.getValues()) {
+        form.setFieldError(e.field, e.fieldMessage ?? e.message);
+      } else setError(e.message);
+    },
   });
 
   return (
     <Modal opened={!!pixel} onClose={onClose} title={isNew ? "Tambah Pixel" : "Ubah Pixel"} size="lg">
       <form
+        autoComplete="off"
         onSubmit={form.onSubmit((v) => {
+          setError(null);
           if (!existing && v.accessToken.trim().length < 20) {
             form.setFieldError("accessToken", "Access token wajib diisi");
             return;
@@ -249,10 +269,11 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
         })}
       >
         <Stack>
-          <TextInput label="Nama" placeholder="Pixel Toko Utama" key={form.key("name")} {...form.getInputProps("name")} />
+          <TextInput label="Nama" placeholder="Pixel Toko Utama" {...noAutofill} key={form.key("name")} {...form.getInputProps("name")} />
           <TextInput
             label="Pixel ID / Dataset ID"
             placeholder="1234567890123456"
+            {...noAutofill}
             key={form.key("pixelId")}
             {...form.getInputProps("pixelId")}
           />
@@ -267,6 +288,8 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
                 </>
               )
             }
+            {...noAutofill}
+            autoComplete="new-password"
             key={form.key("accessToken")}
             {...form.getInputProps("accessToken")}
           />
@@ -274,6 +297,7 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
             label="Test event code (opsional)"
             description="Selama terisi, Pixel dalam mode test: kirim lead dari halaman Leads dinonaktifkan dan hanya tombol Test yang mengirim ke Meta. Kosongkan setelah uji selesai."
             placeholder="TEST12345"
+            {...noAutofill}
             key={form.key("testEventCode")}
             {...form.getInputProps("testEventCode")}
           />
@@ -293,20 +317,26 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
             label="Facebook Page ID"
             description="Halaman Facebook yang dipakai untuk iklan & terhubung ke nomor WhatsApp."
             placeholder="102345678901234"
+            {...noAutofill}
             key={form.key("pageId")}
             {...form.getInputProps("pageId")}
           />
           <TextInput
             label="WhatsApp Business Account ID"
             description="Opsional bila Page ID sudah diisi."
+            {...noAutofill}
             key={form.key("wabaId")}
             {...form.getInputProps("wabaId")}
           />
           <ScopeField
-            applyAll={applyAll}
-            onApplyAllChange={(v) => form.setFieldValue("applyAll", v)}
+            allowAll={false}
+            applyAll={false}
+            onApplyAllChange={() => {}}
             waAccountIds={waAccountIds}
-            onWaAccountIdsChange={(v) => form.setFieldValue("waAccountIds", v)}
+            onWaAccountIdsChange={(v) => {
+              form.setFieldValue("waAccountIds", v);
+              form.clearFieldError("waAccountIds");
+            }}
             error={form.errors.waAccountIds as string | undefined}
           />
           {error && (

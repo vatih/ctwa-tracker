@@ -3,6 +3,7 @@ import { serveStatic } from "hono/bun";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { auth } from "./auth";
+import { FieldError } from "./lib/errors";
 import { env } from "./env";
 import { type AppEnv, sessionMiddleware } from "./lib/context";
 import { meRoutes } from "./routes/me";
@@ -39,6 +40,9 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.route("/api", api);
 
 app.onError((err, c) => {
+  if (err instanceof FieldError) {
+    return c.json({ error: err.message, field: err.field, fieldMessage: err.fieldMessage }, err.status);
+  }
   if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
   console.error(err);
   return c.json({ error: "Internal Server Error" }, 500);

@@ -216,7 +216,7 @@ function TriggerForm({ trigger, onClose, onSaved }: { trigger: Trigger | "new" |
   // event aktif dari menu Events; event lama trigger tetap ditampilkan agar tidak hilang
   const eventOptions = (eventSettings.data ?? [])
     .filter((e) => e.enabled)
-    .map((e) => ({ value: e.name, label: e.label || e.name }));
+    .map((e) => ({ value: e.name, label: `${e.label || e.name}${e.kind === "custom" ? " (custom, hanya lead organik)" : ""}` }));
   if (existing && !eventOptions.some((o) => o.value === existing.eventName)) {
     eventOptions.unshift({ value: existing.eventName, label: `${existing.eventName} (lama)` });
   }

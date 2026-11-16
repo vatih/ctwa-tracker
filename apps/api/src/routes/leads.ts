@@ -7,7 +7,7 @@ import { type AppEnv, requireUser } from "../lib/context";
 import { v } from "../lib/validator";
 import { sendLeadToMeta } from "../services/capi";
 import { evaluate } from "../services/evaluator";
-import { listEventSettings, VALUE_REQUIRED } from "../services/event-settings";
+import { listEventSettings, supportsEvent, VALUE_REQUIRED } from "../services/event-settings";
 import { MISSING_BUSINESS_ID, needsBusinessId, testModeMessage } from "../services/meta";
 import { resolvePixel, resolveTrigger } from "../services/resolve";
 
@@ -161,6 +161,7 @@ export const leadRoutes = new Hono<AppEnv>()
         valueRequired: VALUE_REQUIRED.has(e.name),
         fromTrigger: e.name === triggerEvent,
         sent: sentNames.has(e.name),
+        unsupported: !supportsEvent(lead, e.name),
       }));
     if (triggerEvent && !eventOptions.some((e) => e.name === triggerEvent)) {
       eventOptions.unshift({
@@ -171,6 +172,7 @@ export const leadRoutes = new Hono<AppEnv>()
         valueRequired: VALUE_REQUIRED.has(triggerEvent),
         fromTrigger: true,
         sent: sentNames.has(triggerEvent),
+        unsupported: !supportsEvent(lead, triggerEvent),
       });
     }
 
@@ -181,7 +183,7 @@ export const leadRoutes = new Hono<AppEnv>()
       metrics,
       capi: {
         pixelName: pixel?.name ?? null,
-        eventName: triggerEvent ?? "Lead",
+        eventName: triggerEvent ?? "InitiateCheckout",
         eventOptions,
         testEventCode: pixel?.testEventCode ?? null,
         ...block,

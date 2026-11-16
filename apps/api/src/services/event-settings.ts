@@ -5,9 +5,14 @@ const E = schema.eventSettings;
 
 /** Event standar Meta yang didukung (urutan = urutan tampil) */
 export const STANDARD_EVENTS = [
+  { name: "QualifiedLead", label: "Qualified Lead" },
   { name: "InitiateCheckout", label: "Initiate Checkout" },
   { name: "Purchase", label: "Purchase" },
 ] as const;
+
+/** Lead dari iklan CTWA (business_messaging) hanya menerima event standar di atas, bukan event custom */
+export const supportsEvent = (lead: { ctwaClid: string | null }, name: string) =>
+  !lead.ctwaClid || STANDARD_EVENTS.some((e) => e.name === name);
 
 /** Meta mewajibkan value + currency untuk Purchase */
 export const VALUE_REQUIRED = new Set(["Purchase"]);
@@ -34,6 +39,8 @@ export const RESERVED_NAMES = new Set(
     "SubmitApplication",
     "Subscribe",
     "ViewContent",
+    "LeadSubmitted",
+    "QualifiedLead",
   ].map((n) => n.toLowerCase()),
 );
 

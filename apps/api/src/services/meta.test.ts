@@ -23,25 +23,34 @@ afterEach(() => {
 describe("validatePixel", () => {
   test("token yang boleh baca pixel: pakai info pixel", async () => {
     const calls = mockMeta(() => json({ id: "111", name: "Pixel A" }));
-    expect(await validatePixel("111", "tok")).toEqual({ id: "111", name: "Pixel A" });
+    expect(await validatePixel("111", "tok")).toEqual({ id: "111", name: "Pixel A", verified: true });
     expect(calls).toHaveLength(1);
   });
 
-  test("token CAPI tanpa izin baca: lolos lewat event uji", async () => {
-    const calls = mockMeta((method) => (method === "GET" ? json(missingPerm, 400) : json({ events_received: 1 })));
-    expect(await validatePixel("111", "tok")).toEqual({ id: "111" });
-    expect(calls[1].method).toBe("POST");
-    expect(calls[1].url).toContain("/111/events");
-    expect((calls[1].body as { test_event_code?: string }).test_event_code).toBe("CTWAVALIDATE");
+  test("token CAPI tanpa izin baca: lolos tanpa mengirim event", async () => {
+    const calls = mockMeta(() => json(missingPerm, 400));
+    expect(await validatePixel("111", "tok")).toEqual({ id: "111", verified: false });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("GET");
   });
 
-  test("pixel salah tetap ditolak", async () => {
-    mockMeta((method) =>
-      method === "GET"
-        ? json(missingPerm, 400)
-        : json({ error: { message: "Unsupported post request.", code: 100, error_subcode: 33 } }, 400),
+  test("pixel ID salah (subcode 33) ditolak tanpa mengirim event", async () => {
+    const calls = mockMeta(() =>
+      json(
+        {
+          error: {
+            message:
+              "Unsupported get request. Object with ID '999' does not exist, cannot be loaded due to missing permissions, or does not support this operation.",
+            type: "GraphMethodException",
+            code: 100,
+            error_subcode: 33,
+          },
+        },
+        400,
+      ),
     );
-    await expect(validatePixel("999", "tok")).rejects.toBeInstanceOf(MetaError);
+    await expect(validatePixel("999", "tok")).rejects.toThrow("Pixel/Dataset ID 999 tidak ditemukan");
+    expect(calls).toHaveLength(1);
   });
 
   test("error lain tidak memicu fallback", async () => {

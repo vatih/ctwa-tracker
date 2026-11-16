@@ -39,40 +39,42 @@ async function graph<T>(path: string, init: RequestInit & { token: string }): Pr
 
 export const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
 
+export const graphError = (e: unknown) => (e instanceof MetaError ? (e.body as { error?: GraphError } | null)?.error : undefined);
+
+/** Objek tidak ada / tidak terlihat sama sekali oleh token (mis. Pixel ID salah): code 100 subcode 33 */
+export const isUnknownObject = (e: unknown) => graphError(e)?.code === 100 && graphError(e)?.error_subcode === 33;
+
+/** Objek ada tapi field tidak boleh dibaca token (token CAPI dari Events Manager): "(#100) Missing Permission" */
 const isMissingPermission = (e: unknown) =>
-  e instanceof MetaError && (e.body as { error?: GraphError } | null)?.error?.code === 100 && /missing permission/i.test(e.message);
+  graphError(e)?.code === 100 && !isUnknownObject(e) && /missing permission/i.test((e as Error).message);
 
 /**
- * Validasi pixel + token: token valid dan punya akses ke dataset.
- * Token CAPI dari Events Manager hanya boleh kirim event (tidak boleh baca node pixel),
- * jadi bila baca ditolak "Missing Permission", cek akses dengan mengirim event uji.
+ * Validasi pixel + token tanpa mengirim event.
+ * - Pixel ID salah / tidak terlihat oleh token: Meta membalas subcode 33 -> ditolak.
+ * - Token CAPI dari Events Manager tidak boleh baca node pixel: "Missing Permission" berarti
+ *   pixel ada & token valid (token salah dibalas error 190), tetapi akses kirim belum terbukti:
+ *   verified = false, cek lewat tombol Test.
  */
 export async function validatePixel(
   pixelId: string,
   token: string,
-  onCall?: OnCapiCall,
-): Promise<{ id: string; name?: string }> {
+): Promise<{ id: string; name?: string; verified: boolean }> {
   try {
-    return await graph<{ id: string; name?: string }>(`/${encodeURIComponent(pixelId)}?fields=id,name`, { token });
+    const info = await graph<{ id: string; name?: string }>(`/${encodeURIComponent(pixelId)}?fields=id,name`, { token });
+    return { ...info, verified: true };
   } catch (e) {
+    if (isUnknownObject(e)) {
+      const err = e as MetaError;
+      throw new MetaError(
+        `Pixel/Dataset ID ${pixelId} tidak ditemukan, atau token ini tidak punya akses ke dataset tersebut. Cek lagi ID di Events Manager.`,
+        err.status,
+        err.body,
+        err.fbtraceId,
+      );
+    }
     if (!isMissingPermission(e)) throw e;
+    return { id: pixelId, verified: false };
   }
-  await sendEvents(
-    pixelId,
-    token,
-    [
-      {
-        event_name: "Lead",
-        event_time: Math.floor(Date.now() / 1000),
-        event_id: `ctwa-validate-${Date.now()}`,
-        action_source: "chat",
-        user_data: { ph: [sha256("6280000000000")] },
-      },
-    ],
-    "CTWAVALIDATE",
-    onCall,
-  );
-  return { id: pixelId };
 }
 
 export type CapiEvent = {

@@ -15,6 +15,13 @@
       "when": 1794779308198,
       "tag": "0001_event_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794788711043,
+      "tag": "0002_pixel_explicit_numbers",
+      "breakpoints": true
     }
   ]
 }

@@ -140,7 +140,8 @@ export const pixels = pgTable(
     wabaId: text("waba_id"),
     pageId: text("page_id"), // Facebook Page yang terhubung ke WA (alternatif WABA ID)
     testEventCode: text("test_event_code"),
-    applyAll: boolean("apply_all").notNull().default(true),
+    // selalu false sejak Pixel wajib pilih nomor; kolom dipertahankan untuk data lama
+    applyAll: boolean("apply_all").notNull().default(false),
     validatedAt: ts("validated_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

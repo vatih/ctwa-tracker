@@ -11,7 +11,7 @@ import {
   sendEvents,
   testModeMessage,
 } from "./meta";
-import { findEnabledEvent, VALUE_REQUIRED } from "./event-settings";
+import { findEnabledEvent, supportsEvent, VALUE_REQUIRED } from "./event-settings";
 import { publish } from "./realtime";
 import { resolvePixel, resolveTrigger } from "./resolve";
 
@@ -25,6 +25,7 @@ export type SendResult =
         | "test_mode"
         | "missing_business_id"
         | "invalid_event"
+        | "unsupported_event"
         | "value_required"
         | "already_sent"
         | "meta_error";
@@ -69,12 +70,19 @@ export async function sendLeadToMeta(
   if (needsBusinessId(lead, pixel)) return { ok: false, code: "missing_business_id", message: MISSING_BUSINESS_ID };
 
   const trigger = await resolveTrigger(userId, account.id);
-  const eventName = opts.eventName ?? trigger?.eventName ?? "Lead";
+  const eventName = opts.eventName ?? trigger?.eventName ?? "InitiateCheckout";
   const setting = await findEnabledEvent(userId, eventName);
   const fromTrigger = !!trigger && trigger.eventName === eventName;
   // event di luar trigger harus terdaftar & aktif di menu Events
   if (!setting && !fromTrigger && opts.eventName) {
     return { ok: false, code: "invalid_event", message: `Event ${eventName} tidak aktif. Aktifkan di menu Events.` };
+  }
+  if (!supportsEvent(lead, eventName)) {
+    return {
+      ok: false,
+      code: "unsupported_event",
+      message: `Event ${eventName} tidak bisa dikirim untuk lead dari iklan CTWA. Lead iklan hanya menerima Qualified Lead, Initiate Checkout, dan Purchase; event custom hanya untuk lead organik.`,
+    };
   }
   const value = opts.value ?? (fromTrigger ? trigger?.value : null) ?? setting?.defaultValue ?? null;
   const currency = (fromTrigger ? trigger?.currency : null) ?? setting?.currency ?? "IDR";

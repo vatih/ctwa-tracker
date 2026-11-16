@@ -27,6 +27,7 @@ export type EventSetting = Awaited<ReturnType<typeof fetchEventSettings>>[number
 export const fetchEventSettings = () => unwrap(api["event-settings"].$get());
 
 const STANDARD_HINT: Record<string, string> = {
+  QualifiedLead: "Lead dinilai serius atau berkualitas, misalnya sudah tanya detail produk dan cocok dengan target.",
   InitiateCheckout: "Customer menunjukkan niat beli, misalnya minta nomor rekening atau total harga.",
   Purchase: "Customer sudah membayar. Meta mewajibkan nilai transaksi untuk event ini.",
 };
@@ -64,7 +65,8 @@ export function EventsPage() {
         <div style={{ minWidth: 0 }}>
           <Group gap="xs">
             <Text fw={700}>{e.label || e.name}</Text>
-            {e.label && e.label !== e.name && (
+            {/* nama yang dikirim ke Meta: selalu tampil untuk event standar */}
+            {(e.kind === "standard" || (e.label && e.label !== e.name)) && (
               <Badge variant="outline" color="gray" tt="none">
                 {e.name}
               </Badge>
@@ -125,6 +127,9 @@ export function EventsPage() {
             <Text fw={600}>Event custom</Text>
             <Text size="sm" c="dimmed">
               Nama bebas, misalnya SudahTransfer atau Survey. Bisa dipakai sebagai custom conversion di Events Manager.
+            </Text>
+            <Text size="sm" c="orange">
+              Hanya untuk lead organik. Meta tidak menerima event custom untuk lead dari iklan CTWA (business messaging).
             </Text>
           </div>
           <Button variant="light" leftSection={<IconPlus size={16} />} onClick={() => setEditing("new")}>

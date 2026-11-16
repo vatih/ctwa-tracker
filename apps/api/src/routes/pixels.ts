@@ -7,13 +7,15 @@ import { type AppEnv, requireUser } from "../lib/context";
 import { decrypt, encrypt } from "../lib/crypto";
 import { validateScope } from "../lib/scope";
 import { v } from "../lib/validator";
+import { FieldError } from "../lib/errors";
 import { capiLogger } from "../services/capi-log";
 import {
   buildTestEvent,
+  graphError,
+  isUnknownObject,
   MetaError,
   metaErrorMessage,
   sendEvents,
-  sha256,
   TEST_AD_NEEDS_PAGE,
   validatePixel,
 } from "../services/meta";
@@ -28,43 +30,28 @@ const body = z.object({
   wabaId: z.string().trim().regex(/^\d*$/).optional(),
   pageId: z.string().trim().regex(/^\d*$/).optional(),
   testEventCode: z.string().trim().max(40).optional(),
-  applyAll: z.boolean(),
+  // Pixel wajib dipasang ke nomor tertentu (tidak ada lagi "semua nomor")
   waAccountIds: z.array(z.uuid()).default([]),
 });
 
 const mask = (t: string) => `••••${t.slice(-6)}`;
 
-/** Validasi ke Meta: token & akses dataset, plus kirim event uji bila ada test code */
-async function checkWithMeta(
-  userId: string,
-  pixelRowId: string | null,
-  pixelId: string,
-  token: string,
-  testEventCode?: string | null,
-) {
+/** Validasi ke Meta: token & pixel, tanpa mengirim event (event uji lewat tombol Test) */
+async function checkWithMeta(pixelId: string, token: string) {
   try {
-    const info = await validatePixel(pixelId, token, capiLogger({ userId, source: "validate", pixelId: pixelRowId }));
-    let testEvent: string | null = null;
-    if (testEventCode) {
-      const r = await sendEvents(
-        pixelId,
-        token,
-        [
-          {
-            event_name: "Lead",
-            event_time: Math.floor(Date.now() / 1000),
-            event_id: `ctwa-test-${Date.now()}`,
-            action_source: "chat",
-            user_data: { ph: [sha256("6280000000000")] },
-          },
-        ],
-        testEventCode,
-        capiLogger({ userId, source: "test", pixelId: pixelRowId }),
-      );
-      testEvent = `Event uji terkirim (${r.events_received ?? 0} diterima). Cek di Events Manager → Test Events.`;
-    }
-    return { name: info.name ?? null, testEvent };
+    const info = await validatePixel(pixelId, token);
+    return {
+      name: info.name ?? null,
+      note: info.verified
+        ? null
+        : "Token valid. Akses kirim ke dataset belum diuji, klik Test untuk mengirim event uji.",
+    };
   } catch (e) {
+    // tunjukkan di kolom yang salah: Pixel ID tidak ditemukan / token tidak valid
+    if (isUnknownObject(e)) throw new FieldError(400, "pixelId", (e as Error).message);
+    if (graphError(e)?.code === 190) {
+      throw new FieldError(400, "accessToken", "Access token tidak valid atau sudah kedaluwarsa. Generate ulang di Events Manager.");
+    }
     const msg = e instanceof MetaError ? e.message : (e as Error).message;
     throw new HTTPException(400, { message: `Validasi Meta gagal: ${msg}` });
   }
@@ -76,9 +63,9 @@ async function ownedPixel(userId: string, id: string) {
   return p;
 }
 
-async function saveLinks(pixelId: string, applyAll: boolean, waAccountIds: string[]) {
+async function saveLinks(pixelId: string, waAccountIds: string[]) {
   await db.delete(PW).where(eq(PW.pixelId, pixelId));
-  if (!applyAll && waAccountIds.length) {
+  if (waAccountIds.length) {
     await db.insert(PW).values([...new Set(waAccountIds)].map((waAccountId) => ({ pixelId, waAccountId })));
   }
 }
@@ -105,9 +92,9 @@ export const pixelRoutes = new Hono<AppEnv>()
   .post("/", v("json", body), async (c) => {
     const user = c.get("user")!;
     const b = c.req.valid("json");
-    if (!b.accessToken) throw new HTTPException(400, { message: "Access token CAPI wajib diisi" });
-    await validateScope({ userId: user.id, applyAll: b.applyAll, waAccountIds: b.waAccountIds, ...scopeOpts });
-    const meta = await checkWithMeta(user.id, null, b.pixelId, b.accessToken, b.testEventCode);
+    if (!b.accessToken) throw new FieldError(400, "accessToken", "Access token CAPI wajib diisi");
+    await validateScope({ userId: user.id, applyAll: false, waAccountIds: b.waAccountIds, ...scopeOpts });
+    const meta = await checkWithMeta(b.pixelId, b.accessToken);
     const [p] = await db
       .insert(P)
       .values({
@@ -118,11 +105,11 @@ export const pixelRoutes = new Hono<AppEnv>()
         wabaId: b.wabaId || null,
         pageId: b.pageId || null,
         testEventCode: b.testEventCode || null,
-        applyAll: b.applyAll,
+        applyAll: false,
         validatedAt: new Date(),
       })
       .returning({ id: P.id });
-    await saveLinks(p.id, b.applyAll, b.waAccountIds);
+    await saveLinks(p.id, b.waAccountIds);
     return c.json({ id: p.id, ...meta }, 201);
   })
 
@@ -131,9 +118,9 @@ export const pixelRoutes = new Hono<AppEnv>()
     const { id } = c.req.valid("param");
     const b = c.req.valid("json");
     const existing = await ownedPixel(user.id, id);
-    await validateScope({ userId: user.id, selfId: id, applyAll: b.applyAll, waAccountIds: b.waAccountIds, ...scopeOpts });
+    await validateScope({ userId: user.id, selfId: id, applyAll: false, waAccountIds: b.waAccountIds, ...scopeOpts });
     const token = b.accessToken ?? decrypt(existing.accessTokenEnc);
-    const meta = await checkWithMeta(user.id, id, b.pixelId, token, b.testEventCode);
+    const meta = await checkWithMeta(b.pixelId, token);
     await db
       .update(P)
       .set({
@@ -143,11 +130,11 @@ export const pixelRoutes = new Hono<AppEnv>()
         wabaId: b.wabaId || null,
         pageId: b.pageId || null,
         testEventCode: b.testEventCode || null,
-        applyAll: b.applyAll,
+        applyAll: false,
         validatedAt: new Date(),
       })
       .where(eq(P.id, id));
-    await saveLinks(id, b.applyAll, b.waAccountIds);
+    await saveLinks(id, b.waAccountIds);
     return c.json({ id, ...meta });
   })
 

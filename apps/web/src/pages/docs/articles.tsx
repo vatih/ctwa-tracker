@@ -297,7 +297,7 @@ export const articles: Article[] = [
       <>
         <P>
           <To to="/app/capi-logs">Log CAPI</To> mencatat setiap panggilan ke Meta Conversions API: kiriman lead (termasuk tiap
-          percobaan ulang), validasi pixel, dan event uji. Hanya 200 log terbaru per akun yang disimpan. Klik sebuah baris untuk
+          percobaan ulang) dan event uji dari tombol Test. Hanya 200 log terbaru per akun yang disimpan. Klik sebuah baris untuk
           melihat request yang dikirim (tanpa access token) dan respons lengkap dari Meta.
         </P>
         <P>
