@@ -59,7 +59,7 @@ export function PixelsPage() {
 
   const remove = (p: Pixel) =>
     modals.openConfirmModal({
-      title: `Hapus pixel ${p.name}?`,
+      title: `Hapus dataset ${p.name}?`,
       children: <Text size="sm">Lead pada nomor terkait tidak bisa dikirim ke Meta sampai ada pixel lain.</Text>,
       labels: { confirm: "Hapus", cancel: "Batal" },
       confirmProps: { color: "red" },
@@ -73,13 +73,13 @@ export function PixelsPage() {
     <Stack>
       <Group justify="space-between">
         <div>
-          <Title order={2}>Pixel</Title>
+          <Title order={2}>Datasets (Pixel)</Title>
           <Text c="dimmed" size="sm">
-            Dataset/Pixel dan token Conversions API tujuan pengiriman lead.
+            Dataset (Pixel) Meta dan token Conversions API tujuan pengiriman lead.
           </Text>
         </div>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing("new")}>
-          Tambah Pixel
+          Tambah Dataset
         </Button>
       </Group>
 
@@ -87,13 +87,13 @@ export function PixelsPage() {
         <Card withBorder p="xl">
           <Stack align="center" gap="xs">
             <IconTarget size={40} color="var(--mantine-color-teal-6)" />
-            <Text fw={600}>Belum ada Pixel</Text>
+            <Text fw={600}>Belum ada dataset</Text>
             <Text size="sm" c="dimmed" ta="center" maw={440}>
-              Masukkan Pixel ID dan access token Conversions API dari Events Manager. Data akan divalidasi ke Meta saat
+              Masukkan Dataset ID (Pixel ID) dan access token Conversions API dari Events Manager. Data akan divalidasi ke Meta saat
               disimpan.
             </Text>
             <Button mt="sm" onClick={() => setEditing("new")}>
-              Tambah Pixel
+              Tambah Dataset
             </Button>
           </Stack>
         </Card>
@@ -242,7 +242,7 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
     onSuccess: (r) => {
       notifications.show({
         color: "teal",
-        title: "Pixel tervalidasi & tersimpan",
+        title: "Dataset tervalidasi & tersimpan",
         message: [r.name ? `Dataset: ${r.name}` : null, r.note].filter(Boolean).join(". ") || "OK",
       });
       onSaved();
@@ -256,7 +256,7 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
   });
 
   return (
-    <Modal opened={!!pixel} onClose={onClose} title={isNew ? "Tambah Pixel" : "Ubah Pixel"} size="lg">
+    <Modal opened={!!pixel} onClose={onClose} title={isNew ? "Tambah Dataset" : "Ubah Dataset"} size="lg">
       <form
         autoComplete="off"
         onSubmit={form.onSubmit((v) => {
@@ -269,9 +269,9 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
         })}
       >
         <Stack>
-          <TextInput label="Nama" placeholder="Pixel Toko Utama" {...noAutofill} key={form.key("name")} {...form.getInputProps("name")} />
+          <TextInput label="Nama" placeholder="Dataset Toko Utama" {...noAutofill} key={form.key("name")} {...form.getInputProps("name")} />
           <TextInput
-            label="Pixel ID / Dataset ID"
+            label="Dataset ID / Pixel ID"
             placeholder="1234567890123456"
             {...noAutofill}
             key={form.key("pixelId")}
@@ -295,7 +295,7 @@ function PixelForm({ pixel, onClose, onSaved }: { pixel: Pixel | "new" | null; o
           />
           <TextInput
             label="Test event code (opsional)"
-            description="Selama terisi, Pixel dalam mode test: kirim lead dari halaman Leads dinonaktifkan dan hanya tombol Test yang mengirim ke Meta. Kosongkan setelah uji selesai."
+            description="Selama terisi, dataset dalam mode test: kirim lead dari halaman Leads dinonaktifkan dan hanya tombol Test yang mengirim ke Meta. Kosongkan setelah uji selesai."
             placeholder="TEST12345"
             {...noAutofill}
             key={form.key("testEventCode")}
@@ -418,7 +418,7 @@ function TestModal({ pixel, onClose }: { pixel: Pixel | null; onClose: () => voi
           </Text>
         </div>
         {adBlocked && (
-          <Alert color="yellow">Isi Facebook Page ID di Pixel ini dulu (menu Ubah) untuk tes lead dari iklan.</Alert>
+          <Alert color="yellow">Isi Facebook Page ID di dataset ini dulu (menu Ubah) untuk tes lead dari iklan.</Alert>
         )}
         <Group grow align="flex-start">
           <TextInput

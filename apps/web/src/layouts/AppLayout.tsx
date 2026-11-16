@@ -20,7 +20,7 @@ import { useRealtime } from "../lib/realtime";
 
 const nav = [
   { to: "/app/leads", label: "Leads", icon: IconInbox, exact: true },
-  { to: "/app/pixels", label: "Pixel", icon: IconTarget },
+  { to: "/app/pixels", label: "Datasets (Pixel)", icon: IconTarget },
   { to: "/app/wa-accounts", label: "WA Accounts", icon: IconBrandWhatsapp },
   { to: "/app/triggers", label: "Triggers", icon: IconSettingsAutomation },
   { to: "/app/events", label: "Events", icon: IconBolt },

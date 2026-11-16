@@ -63,7 +63,7 @@ export async function sendLeadToMeta(
   const userId = account.userId;
 
   const pixel = await resolvePixel(userId, account.id);
-  if (!pixel) return { ok: false, code: "no_pixel", message: "Belum ada Pixel untuk nomor ini. Tambahkan di menu Pixel." };
+  if (!pixel) return { ok: false, code: "no_pixel", message: "Belum ada Pixel untuk nomor ini. Tambahkan di menu Datasets (Pixel)." };
 
   // mode test: lead asli tidak dikirim sampai test event code dikosongkan
   if (pixel.testEventCode) return { ok: false, code: "test_mode", message: testModeMessage(pixel.testEventCode) };

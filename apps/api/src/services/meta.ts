@@ -150,7 +150,7 @@ export function metaErrorMessage(body: unknown, fallback?: string): string | und
 }
 
 export const MISSING_BUSINESS_ID =
-  "Lead ini dari iklan WhatsApp, Meta mewajibkan Facebook Page ID atau WhatsApp Business Account ID. Isi salah satunya di menu Pixel (harus yang tertaut ke dataset di Events Manager).";
+  "Lead ini dari iklan WhatsApp, Meta mewajibkan Facebook Page ID atau WhatsApp Business Account ID. Isi salah satunya di menu Datasets (Pixel) (harus yang tertaut ke dataset di Events Manager).";
 
 /** Pesan saat pixel dalam mode test (test event code terisi): kirim lead dinonaktifkan */
 export const testModeMessage = (code: string) =>
@@ -164,7 +164,7 @@ export const needsBusinessId = (lead: { ctwaClid: string | null }, pixel: { waba
 export const TEST_PHONE = "6280000000000";
 
 export const TEST_AD_NEEDS_PAGE =
-  "Tes lead iklan butuh Facebook Page ID di Pixel ini. Event uji tidak punya ctwa_clid, dan untuk itu Meta mewajibkan page_id.";
+  "Tes lead iklan butuh Facebook Page ID di dataset ini. Event uji tidak punya ctwa_clid, dan untuk itu Meta mewajibkan page_id.";
 
 /**
  * Event uji dari tombol Test di Pixel.
