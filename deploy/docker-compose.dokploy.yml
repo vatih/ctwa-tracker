@@ -1,15 +1,42 @@
-# Compose untuk Dokploy. Domain + HTTPS diatur Dokploy (Traefik) ke service `app` port 3000.
-# Wajib dipakai dengan Isolated Deployment aktif (compose.update isolatedDeployment=true): Dokploy membuat
-# jaringan sendiri untuk compose ini, jadi nama service `db`/`engine` tidak bentrok dengan aplikasi lain.
-# Variabel diisi lewat Environment di Dokploy:
-#   POSTGRES_PASSWORD, APP_URL, BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_TOKEN
+# Compose untuk Dokploy. Domain + HTTPS diatur Dokploy ke service `app` port 3000.
+#
+# Yang wajib diisi di tab Environment Dokploy hanya:
+#   APP_URL=https://ctwa.domainanda.com
+# Secret (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_TOKEN) dibuat otomatis sekali oleh service `secrets`
+# dan disimpan di volume `secrets` (tetap sama setiap deploy ulang). Boleh juga diisi manual di Environment;
+# nilai di Environment selalu menang.
+#
+# Wajib dengan Isolated Deployment aktif (tab Advanced): compose ini punya jaringan sendiri, jadi nama service
+# `db`/`engine` tidak bentrok dengan aplikasi lain, dan database tidak bisa diakses dari luar compose ini.
 services:
+  secrets:
+    image: alpine:3.20
+    restart: "no"
+    volumes: [secrets:/data]
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        f=/data/secrets.env
+        if [ ! -s "$$f" ]; then
+          rnd() { head -c "$$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+          {
+            echo "BETTER_AUTH_SECRET=$$(rnd 32)"
+            echo "ENCRYPTION_KEY=$$(rnd 32)"
+            echo "INTERNAL_TOKEN=$$(rnd 24)"
+          } > "$$f.tmp"
+          mv "$$f.tmp" "$$f"
+          echo "secrets dibuat"
+        fi
+        chmod 644 "$$f"
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ctwa
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ctwa-tracker}
       POSTGRES_DB: ctwa_tracker
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
@@ -23,17 +50,20 @@ services:
       dockerfile: deploy/Dockerfile.app
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://ctwa:${POSTGRES_PASSWORD}@db:5432/ctwa_tracker
-      APP_URL: ${APP_URL}
+      DATABASE_URL: postgres://ctwa:${POSTGRES_PASSWORD:-ctwa-tracker}@db:5432/ctwa_tracker
+      APP_URL: ${APP_URL:?isi APP_URL di tab Environment, mis. https://ctwa.domainanda.com}
       BETTER_AUTH_URL: ${APP_URL}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-}
+      SECRETS_FILE: /secrets/secrets.env
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v23.0}
       ENGINE_URL: http://engine:8080
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+    volumes: [secrets:/secrets:ro]
     expose: ["3000"]
     depends_on:
       db: { condition: service_healthy }
+      secrets: { condition: service_completed_successfully }
     mem_limit: 256m
 
   engine:
@@ -41,14 +71,18 @@ services:
       context: ../engine
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://ctwa:${POSTGRES_PASSWORD}@db:5432/ctwa_tracker
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      DATABASE_URL: postgres://ctwa:${POSTGRES_PASSWORD:-ctwa-tracker}@db:5432/ctwa_tracker
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-}
+      SECRETS_FILE: /secrets/secrets.env
       GOMEMLIMIT: ${ENGINE_GOMEMLIMIT:-200MiB}
       DB_POOL_SIZE: ${ENGINE_DB_POOL_SIZE:-4}
+    volumes: [secrets:/secrets:ro]
     depends_on:
       db: { condition: service_healthy }
+      secrets: { condition: service_completed_successfully }
     stop_grace_period: 20s
     mem_limit: 256m
 
 volumes:
   pgdata:
+  secrets:

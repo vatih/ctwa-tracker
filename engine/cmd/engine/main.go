@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,7 +36,25 @@ func main() {
 	}
 }
 
+// loadSecretsFile mengisi env yang kosong dari file KEY=VALUE (dibuat service `secrets` di compose Dokploy).
+func loadSecretsFile(path string) {
+	if path == "" {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if ok && k != "" && os.Getenv(k) == "" {
+			_ = os.Setenv(k, strings.TrimSpace(v))
+		}
+	}
+}
+
 func run(log *slog.Logger) error {
+	loadSecretsFile(os.Getenv("SECRETS_FILE"))
 	dsn := mustEnv("DATABASE_URL")
 	token := mustEnv("INTERNAL_TOKEN")
 	addr := envOr("ENGINE_ADDR", ":8080")
