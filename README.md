@@ -27,6 +27,20 @@ Read-only: aplikasi hanya membaca chat WhatsApp, tidak pernah membalas.
 
 Alur data: engine menerima pesan → buffer → batch insert ke Postgres → `NOTIFY ctwa_ingest` → API mengevaluasi trigger & mengirim CAPI.
 
+## Pasang di Dokploy (tanpa coding)
+
+Di panel Dokploy: **Create Project → Create Service → Compose**, lalu:
+
+| Tab | Isi |
+| --- | --- |
+| General → Provider **Git** | Repository URL `https://github.com/vatih/ctwa-tracker.git`, Branch `stable`, Compose Path `./deploy/docker-compose.dokploy.yml` |
+| Environment | `APP_URL=https://ctwa.domainanda.com` |
+| Advanced | **Isolated Deployment** aktif |
+| Domains | Host `ctwa.domainanda.com`, Service `app`, Port `3000`, HTTPS aktif, Certificate **None** |
+
+Klik **Deploy**. Subdomain di Cloudflare: A record ke IP VPS, Proxied, SSL/TLS mode **Full**.
+Secret dibuat otomatis. User pertama yang mendaftar menjadi admin.
+
 ## Setup cepat dengan AI
 
 Salin `.env.setup.example` menjadi `.env.setup`, isi, lalu minta AI assistant (Claude Code, Copilot, Cursor):

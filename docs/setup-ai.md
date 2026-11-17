@@ -78,11 +78,11 @@ proxy **aktif** (awan oranye) dan SSL/TLS mode **Full** secara manual. AI tidak 
   (awan oranye) → Save. Lalu SSL/TLS → Overview → mode **Full**. Tunggu 1–5 menit, cek lagi.
 - Hasilnya IP VPS (bukan Cloudflare) → record masih DNS only; minta pengguna mengaktifkan proxy (awan oranye).
 
-### B3. Secret produksi
+### B3. Secret
 
-Bila `.env.production.local` belum ada, buat dengan `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`,
-`INTERNAL_TOKEN` acak (format seperti mode local). Kalau sudah ada, pakai isinya; jangan buat ulang.
-Ingatkan pengguna menyimpan file ini di password manager.
+Tidak perlu dibuat: `deploy/docker-compose.dokploy.yml` membuat `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, dan
+`INTERNAL_TOKEN` sendiri saat deploy pertama (service `secrets`, disimpan di volume). Jangan menghapus volume
+`secrets` atau `pgdata` di Dokploy, karena token Pixel yang tersimpan tidak bisa dibuka tanpa `ENCRYPTION_KEY` yang sama.
 
 ### B4. Project dan compose di Dokploy (semua `POST` JSON, header `x-api-key`)
 
@@ -104,7 +104,7 @@ Jangan mengubah atau menghapus project lain di Dokploy.
      "customGitBranch": "{GIT_BRANCH}",
      "composePath": "./deploy/docker-compose.dokploy.yml",
      "isolatedDeployment": true,
-     "env": "POSTGRES_PASSWORD=...\nAPP_URL=https://{APP_DOMAIN}\nBETTER_AUTH_SECRET=...\nENCRYPTION_KEY=...\nINTERNAL_TOKEN=..."
+     "env": "APP_URL=https://{APP_DOMAIN}"
    }
    ```
    `isolatedDeployment: true` WAJIB: tanpa itu service `engine`/`db` bisa tertukar dengan service bernama sama
