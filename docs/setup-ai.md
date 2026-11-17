@@ -77,7 +77,7 @@ proxy **aktif** (awan oranye) dan SSL/TLS mode **Full** secara manual. AI tidak 
 ### B1. Cek akses
 
 - Rapikan `DOKPLOY_URL`: tanpa skema (mis. `dokploy.domain.com`) → tambahkan `https://`; buang `/` di akhir.
-  Respons 301/308 = skema salah; ikuti alamat tujuannya.
+  Respons 301/308 (biasanya halaman HTML Cloudflare) = URL masih `http://` atau tanpa skema; ulangi dengan `https://`.
 - Dokploy: `GET {DOKPLOY_URL}/api/project.all` dengan header `x-api-key: {DOKPLOY_API_KEY}` → harus 200.
   401 → minta pengguna membuat ulang API key di Dokploy → Settings → Profile → API/CLI.
 - Di Windows PowerShell 5.1, `curl` adalah alias `Invoke-WebRequest`; pakai `curl.exe`, atau `Invoke-RestMethod`.
@@ -124,17 +124,23 @@ Jangan mengubah atau menghapus project lain di Dokploy.
      "env": "APP_URL=https://{APP_DOMAIN}"
    }
    ```
+   `env` menimpa seluruh isi Environment. Kalau compose sudah ada, ambil `env` lama dari `compose.one`,
+   ganti/tambahkan baris `APP_URL=...` saja, dan kirim sisanya apa adanya.
    `isolatedDeployment: true` WAJIB: tanpa itu service `engine`/`db` bisa tertukar dengan service bernama sama
    milik aplikasi lain di jaringan bersama `dokploy-network`.
    Repo **private**: buat SSH key di Dokploy (bagian `sshKey` di Swagger), pasang public key-nya sebagai
    deploy key read-only di GitHub (`gh repo deploy-key add`), lalu pakai URL `git@github.com:<owner>/<repo>.git`
    dan isi `customGitSSHKeyId`.
-4. **Domain:** kalau `GET domain.byComposeId?composeId=...` belum memuat `APP_DOMAIN`, buat:
-   `certificateType: "none"`: sertifikat publik dari Cloudflare; Traefik cukup memakai sertifikat bawaannya
-   (diterima oleh SSL mode Full).
+4. **Domain:** `GET domain.byComposeId?composeId=...` mengembalikan array domain. Kalau tidak ada yang `host`-nya
+   sama dengan `APP_DOMAIN`, buat:
    `domain.create {"host":"{APP_DOMAIN}","port":3000,"serviceName":"app","https":true,"certificateType":"none","composeId":"...","domainType":"compose"}`.
-5. **Deploy:** `compose.deploy {"composeId":"..."}`. Build pertama 5–15 menit.
-   Pantau `composeStatus` di `GET compose.one?composeId=...` (`running` → `done` atau `error`) tiap ~20 detik;
+   `certificateType: "none"` karena sertifikat publik datang dari Cloudflare; sertifikat bawaan Traefik
+   diterima oleh SSL mode Full.
+5. **Deploy:** catat waktu sekarang, lalu `compose.deploy {"composeId":"..."}` (respons "Deployment queued").
+   Jangan mengandalkan `composeStatus` saja: nilainya bisa masih `done` dari deploy sebelumnya. Tiap ~20 detik
+   baca `GET compose.one?composeId=...` → `deployments[]`, ambil entri terbaru yang `createdAt`-nya setelah
+   waktu tadi, tunggu `status` menjadi `done` atau `error`. Build pertama 5–15 menit; deploy ulang bisa selesai
+   dalam hitungan detik karena cache, itu normal.
    `error` → minta pengguna membuka tab Deployments di Dokploy dan menyalin baris error terakhir.
 
 ### B5. Verifikasi
