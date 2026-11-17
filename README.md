@@ -27,7 +27,26 @@ Read-only: aplikasi hanya membaca chat WhatsApp, tidak pernah membalas.
 
 Alur data: engine menerima pesan → buffer → batch insert ke Postgres → `NOTIFY ctwa_ingest` → API mengevaluasi trigger & mengirim CAPI.
 
-## Pasang di Dokploy (tanpa coding)
+## Pasang di Dokploy dengan AI (cara kelas)
+
+1. Buat subdomain di Cloudflare: A record ke IP VPS, **Proxied**, SSL/TLS mode **Full**.
+2. Di Dokploy: **Settings → Profile → API/CLI → Generate**, salin API key-nya.
+3. Tempel prompt ini ke Claude Code (atau AI assistant lain yang bisa menjalankan perintah):
+
+   ```
+   Pasang CTWA Tracker di Dokploy saya, ikuti panduan ini:
+   https://raw.githubusercontent.com/vatih/ctwa-tracker/stable/docs/setup-ai.md
+
+   DOKPLOY_URL=http://IP-VPS:3000
+   DOKPLOY_API_KEY=isi-api-key
+   APP_DOMAIN=ctwa.domainanda.com
+   ```
+
+4. Setelah AI selesai, buka `https://ctwa.domainanda.com/register` dan daftar. User pertama menjadi admin.
+
+Tidak perlu clone repo. Secret dibuat otomatis.
+
+## Pasang di Dokploy secara manual (tanpa AI)
 
 Di panel Dokploy: **Create Project → Create Service → Compose**, lalu:
 
@@ -41,7 +60,7 @@ Di panel Dokploy: **Create Project → Create Service → Compose**, lalu:
 Klik **Deploy**. Subdomain di Cloudflare: A record ke IP VPS, Proxied, SSL/TLS mode **Full**.
 Secret dibuat otomatis. User pertama yang mendaftar menjadi admin.
 
-## Setup cepat dengan AI
+## Setup dengan AI dari clone repo (lokal atau Dokploy)
 
 Salin `.env.setup.example` menjadi `.env.setup`, isi, lalu minta AI assistant (Claude Code, Copilot, Cursor):
 

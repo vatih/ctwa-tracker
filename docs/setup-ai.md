@@ -1,14 +1,30 @@
 # Setup CTWA Tracker oleh AI
 
 Dokumen ini ditulis untuk **AI coding assistant** (Claude Code, Copilot agent, Cursor, dll) yang diminta
-memasang CTWA Tracker untuk pengguna. Pengguna cukup mengisi `.env.setup`, lalu memberi prompt.
-Di akhir, pengguna tinggal membuka URL aplikasi dan login.
+memasang CTWA Tracker untuk pengguna. Di akhir, pengguna tinggal membuka URL aplikasi dan login.
+
+## Dari mana nilai-nilainya
+
+Cara yang dipakai di kelas: pengguna **tidak** meng-clone repo. Ia cukup menempelkan prompt berisi link dokumen
+ini dan tiga nilai:
+
+```
+DOKPLOY_URL=http://IP-VPS:3000
+DOKPLOY_API_KEY=...
+APP_DOMAIN=ctwa.domainanda.com
+```
+
+Pakai mode `dokploy` (bagian B) dengan `GIT_REPO_URL=https://github.com/vatih/ctwa-tracker.git` dan
+`GIT_BRANCH=stable`, kecuali pengguna menyebut lain. Kerjakan di folder mana pun; repo tidak perlu ada di lokal.
+**Jangan menulis API key ke file apa pun.** Kalau salah satu nilai belum diberikan, tanyakan dulu.
+`ADMIN_*` tidak wajib: kalau tidak diberikan, lewati bagian C dan minta pengguna langsung daftar di
+`https://{APP_DOMAIN}/register` (akun pertama otomatis admin).
+
+Kalau AI dijalankan di dalam clone repo ini dan ada `.env.setup`, nilai diambil dari file itu
+(contoh: `.env.setup.example`); ikuti `SETUP_MODE`: `local` → bagian A, `dokploy` → bagian B.
 
 ## Aturan untuk AI
 
-- Baca `.env.setup` di root repo. Kalau belum ada: salin `.env.setup.example` menjadi `.env.setup`,
-  minta pengguna mengisinya, lalu berhenti sampai pengguna bilang sudah diisi.
-- Ikuti `SETUP_MODE`: `local` → bagian A, `dokploy` → bagian B.
 - **Jangan pernah menampilkan** isi token, password, atau secret di chat/log. Sebut nama variabelnya saja.
 - Jangan commit `.env`, `.env.setup`, atau `.env.production.local` (semuanya sudah di-ignore).
 - Semua langkah harus aman diulang: kalau sesuatu sudah ada (container, project, record DNS, akun), pakai yang ada.
@@ -52,8 +68,8 @@ Update versi: `git pull` lalu ulangi langkah 3.
 
 ## B. Mode `dokploy` (VPS + Dokploy)
 
-Variabel wajib di `.env.setup`: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `APP_DOMAIN`, `GIT_REPO_URL`, `GIT_BRANCH`,
-dan data admin.
+Nilai wajib: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `APP_DOMAIN` (dari prompt atau `.env.setup`);
+`GIT_REPO_URL`/`GIT_BRANCH` pakai default di atas bila tidak diberikan.
 
 HTTPS ditangani **Cloudflare**, bukan Let's Encrypt: pengguna membuat A record `APP_DOMAIN` → IP VPS dengan
 proxy **aktif** (awan oranye) dan SSL/TLS mode **Full** secara manual. AI tidak memegang token Cloudflare.
@@ -64,6 +80,7 @@ proxy **aktif** (awan oranye) dan SSL/TLS mode **Full** secara manual. AI tidak 
   Respons 301/308 = skema salah; ikuti alamat tujuannya.
 - Dokploy: `GET {DOKPLOY_URL}/api/project.all` dengan header `x-api-key: {DOKPLOY_API_KEY}` → harus 200.
   401 → minta pengguna membuat ulang API key di Dokploy → Settings → Profile → API/CLI.
+- Di Windows PowerShell 5.1, `curl` adalah alias `Invoke-WebRequest`; pakai `curl.exe`, atau `Invoke-RestMethod`.
 - Panggil API dengan `curl`, atau set header `User-Agent` sendiri (mis. `ctwa-tracker-setup/1.0`). Panel Dokploy
   di belakang Cloudflare bisa menolak User-Agent bawaan library (mis. `Python-urllib`) dengan 403 "Error 1010".
 - Referensi lengkap API Dokploy: `{DOKPLOY_URL}/swagger` dan https://docs.dokploy.com/docs/api.
@@ -131,8 +148,9 @@ Jangan mengubah atau menghapus project lain di Dokploy.
   - 502 dengan body `error code: 502` padahal container jalan → cek domain di Dokploy (port 3000, service `app`).
 - Cek engine: setelah login, `GET {BASE}/api/panel/stats` (admin) harus punya `engine` yang tidak `null`.
   `null` = app tidak bisa menghubungi engine → pastikan `isolatedDeployment` aktif, lalu deploy ulang.
-- Buat akun admin (bagian C) dengan `BASE=https://{APP_DOMAIN}`.
-- Laporkan: URL aplikasi, email login, nama project di Dokploy.
+- Kalau `ADMIN_*` diberikan: buat akun admin (bagian C) dengan `BASE=https://{APP_DOMAIN}`.
+  Kalau tidak: minta pengguna segera membuka `https://{APP_DOMAIN}/register` dan mendaftar.
+- Laporkan: URL aplikasi, nama project di Dokploy, dan (bila dibuat) email login.
 
 Update versi: `compose.deploy` lagi (atau tombol Deploy di Dokploy).
 
