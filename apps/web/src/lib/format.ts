@@ -20,3 +20,8 @@ export function formatListTime(d: Date) {
   if (d.toDateString() === now.toDateString()) return formatTime(d);
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(d);
 }
+
+/** Nama tampilan nomor WA: nama yang diberi user, lalu nama profil WA, lalu nomornya. */
+export function accountName(a: { label?: string | null; pushName?: string | null; phone?: string | null }) {
+  return a.label || a.pushName || (a.phone ? `+${a.phone}` : "Nomor");
+}

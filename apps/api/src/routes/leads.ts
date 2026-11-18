@@ -74,6 +74,7 @@ export const leadRoutes = new Hono<AppEnv>()
         adSourceId: L.adSourceId,
         accountLabel: A.label,
         accountPhone: A.phone,
+        accountPushName: A.pushName,
       })
       .from(L)
       .innerJoin(A, eq(L.waAccountId, A.id))

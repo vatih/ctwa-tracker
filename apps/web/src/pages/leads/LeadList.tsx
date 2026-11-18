@@ -16,7 +16,7 @@ import { IconSearch } from "@tabler/icons-react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, unwrap } from "../../lib/api";
-import { formatListTime } from "../../lib/format";
+import { accountName, formatListTime } from "../../lib/format";
 import { LeadTags } from "./LeadTags";
 import classes from "./Leads.module.css";
 
@@ -26,10 +26,13 @@ export function LeadList({
   selectedId,
   onSelect,
   accountId,
+  showAccount,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   accountId: string | null;
+  /** Tampilkan nama nomor tujuan di tiap lead (saat melihat semua nomor). */
+  showAccount?: boolean;
 }) {
   const [tag, setTag] = useState<Tag>("all");
   const [search, setSearch] = useState("");
@@ -100,9 +103,21 @@ export function LeadList({
             <Text size="xs" c="dimmed" truncate mt={2}>
               {l.lastMessagePreview ?? ""}
             </Text>
-            <Box mt={6}>
+            <Group mt={6} justify="space-between" wrap="nowrap" gap="xs">
               <LeadTags fromAd={l.fromAd} isPotential={l.isPotential} capiSent={!!l.capiSentAt} />
-            </Box>
+              {showAccount && (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  truncate
+                  maw="45%"
+                  style={{ flexShrink: 0 }}
+                  title={l.accountPhone ? `Masuk ke +${l.accountPhone}` : undefined}
+                >
+                  {accountName({ label: l.accountLabel, pushName: l.accountPushName, phone: l.accountPhone })}
+                </Text>
+              )}
+            </Group>
           </UnstyledButton>
         ))}
         {list.hasNextPage && (

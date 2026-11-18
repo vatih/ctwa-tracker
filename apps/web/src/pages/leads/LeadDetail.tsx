@@ -67,7 +67,7 @@ export function LeadDetail({ leadId }: { leadId: string }) {
         <Stack gap="xs">
           <Row label="Masuk ke nomor">
             {account.phone ? `+${account.phone}` : "—"}
-            {account.label ? ` · ${account.label}` : ""}
+            {account.label || account.pushName ? ` · ${account.label || account.pushName}` : ""}
           </Row>
           <Row label="Chat pertama">{formatDateTime(new Date(lead.firstMessageAt))}</Row>
           <Row label="Jumlah pesan">

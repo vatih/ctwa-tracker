@@ -1,7 +1,29 @@
-import { ActionIcon, Badge, Button, Card, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Menu,
+  Modal,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  UnstyledButton,
+} from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconBrandWhatsapp, IconDots, IconLink, IconLogout, IconPlus, IconTrash } from "@tabler/icons-react";
+import {
+  IconBrandWhatsapp,
+  IconDots,
+  IconLink,
+  IconLogout,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, unwrap } from "../../lib/api";
@@ -25,6 +47,25 @@ export function WaAccountsPage() {
     refetchInterval: 15_000,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["wa-accounts"] });
+
+  const [renaming, setRenaming] = useState<{ id: string; phone: string | null; pushName: string | null } | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const openRename = (a: { id: string; phone: string | null; pushName: string | null; label: string | null }) => {
+    setRenaming(a);
+    setNameDraft(a.label ?? "");
+  };
+  const rename = useMutation({
+    mutationFn: ({ id, label }: { id: string; label: string }) =>
+      unwrap(api["wa-accounts"][":id"].$patch({ param: { id }, json: { label } })),
+    onSuccess: () => {
+      setRenaming(null);
+      refresh();
+      // Nama nomor juga tampil di inbox Leads.
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["lead"] });
+    },
+    onError: (e) => notifications.show({ color: "red", title: "Gagal menyimpan nama", message: e.message }),
+  });
 
   const add = useMutation({
     mutationFn: () => unwrap(api["wa-accounts"].$post({ json: {} })),
@@ -117,9 +158,14 @@ export function WaAccountsPage() {
                     <Table.Tr key={a.id}>
                       <Table.Td>
                         <Text fw={600}>{a.phone ? `+${a.phone}` : "—"}</Text>
-                        <Text size="xs" c="dimmed">
-                          {a.label ?? a.pushName ?? "Tanpa label"}
-                        </Text>
+                        <UnstyledButton onClick={() => openRename(a)} title="Ubah nama nomor">
+                          <Group gap={4} wrap="nowrap">
+                            <Text size="xs" c={a.label ? undefined : "dimmed"} fw={a.label ? 500 : undefined}>
+                              {a.label || a.pushName || "Beri nama"}
+                            </Text>
+                            <IconPencil size={12} color="var(--mantine-color-dimmed)" />
+                          </Group>
+                        </UnstyledButton>
                       </Table.Td>
                       <Table.Td>
                         <Badge color={st.color} variant="light">
@@ -143,6 +189,9 @@ export function WaAccountsPage() {
                               </ActionIcon>
                             </Menu.Target>
                             <Menu.Dropdown>
+                              <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => openRename(a)}>
+                                Ubah nama
+                              </Menu.Item>
                               {a.status === "connected" && (
                                 <Menu.Item leftSection={<IconLogout size={14} />} onClick={() => confirmLogout(a.id)}>
                                   Logout
@@ -163,6 +212,35 @@ export function WaAccountsPage() {
           </Table.ScrollContainer>
         </Card>
       )}
+
+      <Modal opened={!!renaming} onClose={() => setRenaming(null)} title="Nama nomor" size="sm">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (renaming) rename.mutate({ id: renaming.id, label: nameDraft.trim() });
+          }}
+        >
+          <Stack>
+            <TextInput
+              label={renaming?.phone ? `+${renaming.phone}` : "Nomor belum terhubung"}
+              description="Tampil di WA Accounts dan inbox Leads. Kosongkan untuk memakai nama profil WhatsApp."
+              placeholder={renaming?.pushName ?? "mis. Admin CS, Toko Cabang Jogja"}
+              maxLength={60}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.currentTarget.value)}
+              data-autofocus
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setRenaming(null)}>
+                Batal
+              </Button>
+              <Button type="submit" loading={rename.isPending}>
+                Simpan
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
 
       <PairModal
         accountId={pairId}

@@ -4,6 +4,7 @@ import { IconArrowLeft, IconInbox, IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { api, unwrap } from "../../lib/api";
+import { accountName } from "../../lib/format";
 import { ChatView } from "./ChatView";
 import { LeadDetail } from "./LeadDetail";
 import { LeadList } from "./LeadList";
@@ -70,7 +71,7 @@ export function LeadsPage() {
                   />
                 }
               >
-                {a.label ?? a.pushName ?? (a.phone ? `+${a.phone}` : "Nomor")}
+                {accountName(a)}
                 {a.phone && (a.label || a.pushName) && (
                   <Text span size="xs" c="dimmed" ml={6}>
                     +{a.phone}
@@ -85,7 +86,13 @@ export function LeadsPage() {
       <Box className={classes.inbox}>
         {showList && (
           <Box className={classes.col}>
-            <LeadList key={accountId ?? "all"} selectedId={leadId} onSelect={select} accountId={accountId} />
+            <LeadList
+              key={accountId ?? "all"}
+              selectedId={leadId}
+              onSelect={select}
+              accountId={accountId}
+              showAccount={!accountId && accountList.length > 1}
+            />
           </Box>
         )}
 
